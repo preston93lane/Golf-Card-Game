@@ -125,7 +125,7 @@ const $=id=>document.getElementById(id);
 const SU=['♠','♥','♦','♣'],RK=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const T={think:1000,beat:900,after:1300,peek:6000};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const newId=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const DEAL_MS=2600;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const val=c=>c.j?-10:c.r==='K'?0:c.r==='5'?-5:c.r==='A'?1:(c.r==='J'||c.r==='Q')?10:+c.r;
@@ -229,7 +229,7 @@ $('start').onclick=()=>{
 function draw(){if(!E.deck.length){const t=E.disc.pop();E.deck=shuf(E.disc);E.disc=t?[t]:[]}return E.deck.pop()}
 const isDown=(p,i)=>!E.hands[p][i].up;
 function put(p,i){const h=E.hands[p];E.disc.push(h[i].c);h[i]={c:E.hold,up:true,k:true};E.hold=null}
-function swapEv(p,i){const n=E.hold,o=E.hands[p][i].c;put(p,i);E.ev={id:uid(),k:'swap',p,i,c:enc(n),o:enc(o)}}
+function swapEv(p,i){const n=E.hold,o=E.hands[p][i].c;put(p,i);E.ev={id:newId(),k:'swap',p,i,c:enc(n),o:enc(o)}}
 function flip(p,i){const s=E.hands[p][i];s.up=true;s.k=true}
 
 // Writes the public state and each human's private data in one update
@@ -274,7 +274,7 @@ async function runGame(){
       if(E.round===9){await db.ref('rooms/'+CODE+'/state').set({status:'lobby'});E=null;return}
       E.round++;
     }
-  }catch(e){console.error(e)}
+  }catch(e){console.error(e);say('Game stopped: '+e.message)}
 }
 
 async function dealRound(){
@@ -283,7 +283,7 @@ async function dealRound(){
   E.hands=[0,1,2,3].map(()=>[0,1,2,3].map(i=>({c:E.deck.pop(),up:false,k:i>1})));
   E.disc=[E.deck.pop()];E.hold=null;E.src='none';E.turn=(E.round-1)%4;
   E.phase='deal';E.deadline=0;E.msg='';E.scores=null;
-  E.ev={id:uid(),k:'deal',top:enc(E.disc[0])};
+  E.ev={id:newId(),k:'deal',top:enc(E.disc[0])};
   await pub();
   await sleep(DEAL_MS);
   E.phase='peek';E.deadline=Date.now()+T.peek;
@@ -307,17 +307,17 @@ async function humanTurn(p){
     const a=await waitAct(uid,x=>x.type==='deck'||x.type==='disc');
     if(a.type==='deck'){E.hold=draw();E.src='deck';E.msg=nm+' drew from the deck.'}
     else{E.hold=E.disc.pop();E.src='disc';E.msg=nm+' took the '+show(E.hold)+' from the discard.'}
-    E.ev={id:uid(),k:'draw',p,src:E.src,c:E.src==='disc'?enc(E.hold):null};
+    E.ev={id:newId(),k:'draw',p,src:E.src,c:E.src==='disc'?enc(E.hold):null};
     E.phase='place';await pub();
     const b=await waitAct(uid,x=>(x.type==='slot'&&isDown(p,x.i))||x.type==='discard');
     if(b.type==='slot'){
       const n=E.hold;swapEv(p,b.i);E.msg=nm+' swapped in the '+show(n)+'.';await pub();return;
     }
-    E.ev={id:uid(),k:'discard',p,c:enc(E.hold)};E.disc.push(E.hold);E.hold=null;
+    E.ev={id:newId(),k:'discard',p,c:enc(E.hold)};E.disc.push(E.hold);E.hold=null;
     if(E.src==='disc'){E.msg=nm+' put the card back.';continue}
     E.phase='flip';E.msg=nm+' discarded it and must flip a card.';await pub();
     const c=await waitAct(uid,x=>x.type==='slot'&&isDown(p,x.i));
-    flip(p,c.i);E.ev={id:uid(),k:'flip',p,i:c.i};E.msg=nm+' flipped the '+show(E.hands[p][c.i].c)+'.';await pub();return;
+    flip(p,c.i);E.ev={id:newId(),k:'flip',p,i:c.i};E.msg=nm+' flipped the '+show(E.hands[p][c.i].c)+'.';await pub();return;
   }
 }
 
@@ -332,17 +332,17 @@ async function aiTurn(p){
   E.phase='ai';E.src='none';E.msg=nm+' is thinking…';await pub();await sleep(T.think);
   if(top&&gain(top,best(top))>=(one?.5:2.5)){
     const w=best(top);
-    E.hold=E.disc.pop();E.src='disc';E.msg=nm+' took the '+show(top)+' from the discard.';E.ev={id:uid(),k:'draw',p,src:'disc',c:enc(top)};await pub();await sleep(T.beat);
+    E.hold=E.disc.pop();E.src='disc';E.msg=nm+' took the '+show(top)+' from the discard.';E.ev={id:newId(),k:'draw',p,src:'disc',c:enc(top)};await pub();await sleep(T.beat);
     swapEv(p,w);E.msg=nm+' swapped it in.';
   }else{
     const c=draw(),w=best(c);
-    E.hold=c;E.src='deck';E.msg=nm+' drew from the deck.';E.ev={id:uid(),k:'draw',p,src:'deck',c:null};await pub();await sleep(T.beat);
+    E.hold=c;E.src='deck';E.msg=nm+' drew from the deck.';E.ev={id:newId(),k:'draw',p,src:'deck',c:null};await pub();await sleep(T.beat);
     if(gain(c,w)>=(one?.5:2)){
       swapEv(p,w);E.msg=nm+' swapped in the '+show(c)+'.';
     }else{
-      E.ev={id:uid(),k:'discard',p,c:enc(c)};E.disc.push(c);E.hold=null;await pub();await sleep(T.beat);
+      E.ev={id:newId(),k:'discard',p,c:enc(c)};E.disc.push(c);E.hold=null;await pub();await sleep(T.beat);
       const unk=open.filter(i=>!h[i].k),f=unk.length?unk[0]:open[0];
-      flip(p,f);E.ev={id:uid(),k:'flip',p,i:f};E.msg=nm+' discarded the '+show(c)+' and flipped a card.';
+      flip(p,f);E.ev={id:newId(),k:'flip',p,i:f};E.msg=nm+' discarded the '+show(c)+' and flipped a card.';
     }
   }
   E.hold=null;await pub();await sleep(T.after);

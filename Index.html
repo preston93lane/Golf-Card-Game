@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Golf</title>
+<style>
+:root{--felt:#14532d;--felt2:#0b2e1a;--gold:#facc15}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--felt2);color:#f8fafc;font-family:system-ui,-apple-system,Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+#app{min-height:100svh;display:flex;flex-direction:column;gap:4px;padding:max(env(safe-area-inset-top),8px) 8px max(env(safe-area-inset-bottom),8px);background:radial-gradient(circle at 50% 45%,var(--felt),var(--felt2))}
+#top{display:flex;align-items:center;gap:8px}
+#rd{font-weight:700;font-size:13px;white-space:nowrap}
+#sc{display:flex;gap:4px;flex:1}
+.chip{flex:1;background:#0005;border:2px solid transparent;border-radius:8px;padding:2px 4px;text-align:center;font-size:11px;display:flex;flex-direction:column}
+.chip b{font-size:15px}
+.chip.on{border-color:var(--gold)}
+#msg{min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:14px;padding:2px 6px;gap:8px}
+button{font:inherit;font-weight:700;background:var(--gold);color:#111;border:0;border-radius:8px;padding:6px 12px}
+#table{flex:1;display:flex;flex-direction:column;justify-content:space-around;align-items:center}
+#mid{width:100%;display:flex;justify-content:space-between;align-items:center}
+.seat{--w:min(10.5vw,6.2svh,46px);display:flex;flex-direction:column;align-items:center;gap:3px}
+.seat.me{--w:min(17vw,9.5svh,70px)}
+#ctr{--w:min(13vw,52px);display:flex;gap:6px}
+.pile{display:flex;flex-direction:column;align-items:center;gap:2px}
+small{font-size:10px;opacity:.8}
+.lbl{font-size:12px;font-weight:700;padding:1px 9px;border-radius:10px}
+.lbl.on{background:var(--gold);color:#111}
+.grid{display:grid;grid-template-columns:repeat(2,var(--w));gap:5px}
+.card{width:var(--w);height:calc(var(--w)*1.4);border-radius:calc(var(--w)*.12);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;line-height:1.05;box-shadow:0 2px 4px #0007}
+.back{background:repeating-linear-gradient(45deg,#1e3a8a 0 5px,#2f55b8 5px 10px);border:2px solid #fff}
+.face{background:#fff;color:#111;font-size:calc(var(--w)*.42)}
+.face span{font-size:calc(var(--w)*.4)}
+.face.red{color:#c81e1e}
+.joker{color:#7c3aed}
+.joker small{font-size:calc(var(--w)*.2);opacity:1}
+.empty{border:2px dashed #fff5;box-shadow:none}
+.tap{outline:3px solid var(--gold);animation:p 1s infinite}
+@keyframes p{50%{outline-color:#facc1544}}
+.mt{box-shadow:0 0 0 3px #4ade80,0 2px 4px #0007}
+.hl{box-shadow:0 0 0 3px #38bdf8,0 2px 4px #0007}
+.peek{outline:3px dashed #38bdf8}
+.inv{visibility:hidden}
+#foot{font-size:10.5px;text-align:center;opacity:.75}
+#ov{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:9}
+.panel{background:#fff;color:#111;border-radius:16px;padding:20px;width:100%;max-width:340px;text-align:center}
+.panel h2{margin:0 0 6px}
+.panel table{width:100%;border-collapse:collapse;margin:10px 0 16px}
+.panel td,.panel th{padding:6px;border-bottom:1px solid #ddd}
+.win{background:#fef08a;font-weight:700}
+.panel button{width:100%;padding:12px;font-size:16px}
+.w{font-size:20px;font-weight:700;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top"><div id="rd"></div><div id="sc"></div></div>
+  <div id="msg"></div>
+  <div id="table">
+    <div class="seat" id="s2"></div>
+    <div id="mid">
+      <div class="seat" id="s1"></div>
+      <div id="ctr"></div>
+      <div class="seat" id="s3"></div>
+    </div>
+    <div class="seat me" id="s0"></div>
+  </div>
+  <div id="foot">Joker −10 · 5 −5 · King 0 · Ace 1 · 2–10 face value · Jack, Queen 10<br>Matching ranks: two cancel to 0 · a 3rd subtracts its value · a 4th subtracts again (5s and Jokers never match)</div>
+</div>
+<div id="ov"></div>
+<script>
+const $=id=>document.getElementById(id);
+const SU=['♠','♥','♦','♣'],RK=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const NM=['You','West','North','East']; // clockwise: bottom, left, top, right
+const val=c=>c.j?-10:c.r==='K'?0:c.r==='5'?-5:c.r==='A'?1:(c.r==='J'||c.r==='Q')?10:+c.r;
+function handScore(cs){
+  const m={};let t=0;
+  cs.forEach(c=>{const v=val(c);if(v<=0)t+=v;else(m[c.r]=m[c.r]||[]).push(v)});
+  Object.values(m).forEach(a=>{t+=a.length===1?a[0]:-(a.length-2)*a[0]});
+  return t;
+}
+const nm=c=>c.j?'a Joker':'the '+c.r+c.s;
+let G={round:1,totals:[0,0,0,0]},pt;
+
+function shuf(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function draw(){if(!G.deck.length){const t=G.disc.pop();G.deck=shuf(G.disc);G.disc=t?[t]:[]}return G.deck.pop()}
+function say(h){$('msg').innerHTML=h}
+
+function cardHTML(c,up,at,cls){
+  at=at||'';cls=cls||'';
+  if(!up)return `<div class="card back ${cls}" ${at}></div>`;
+  if(c.j)return `<div class="card face joker ${cls}" ${at}><b>★</b><small>JOKER</small></div>`;
+  const red=c.s==='♥'||c.s==='♦';
+  return `<div class="card face ${red?'red':''} ${cls}" ${at}><b>${c.r}</b><span>${c.s}</span></div>`;
+}
+
+function seat(p){
+  const h=G.hands[p],peek=G.phase==='peek'&&p===0;
+  const sc=handScore(h.filter(s=>s.up).map(s=>s.c)),cnt={};
+  h.forEach(s=>{if(s.up&&val(s.c)>0)cnt[s.c.r]=(cnt[s.c.r]||0)+1});
+  const cells=h.map((s,i)=>{
+    const show=s.up||(peek&&i>1);
+    const can=p===0&&!s.up&&(G.phase==='place'||G.phase==='flip');
+    const hl=G.last&&G.last.p===p&&G.last.i===i,mt=s.up&&val(s.c)>0&&cnt[s.c.r]>1;
+    return cardHTML(s.c,show,`id="c${p}${i}" `+(can?`data-a="slot" data-i="${i}"`:''),(can?'tap ':'')+(mt?'mt ':'')+(hl?'hl ':'')+(show&&!s.up?'peek ':'')+(G.phase==='deal'?'inv':''));
+  }).join('');
+  return `<div class="lbl ${G.turn===p&&G.phase!=='over'?'on':''}">${NM[p]} · ${sc}</div><div class="grid">${cells}</div>`;
+}
+
+function render(){
+  $('rd').textContent='Round '+G.round+' of 9';
+  $('sc').innerHTML=[0,1,2,3].map(p=>`<div class="chip ${G.turn===p&&G.phase!=='over'?'on':''}">${NM[p]}<b>${G.totals[p]}</b></div>`).join('');
+  [0,1,2,3].forEach(p=>$('s'+p).innerHTML=seat(p));
+  const top=G.phase==='deal'?null:G.disc[G.disc.length-1],cd=G.phase==='choose',cp=G.phase==='place';
+  const da='id="dc" '+(((cd&&top)||cp)?'data-a="disc"':'');
+  $('ctr').innerHTML=
+   `<div class="pile">${cardHTML({},false,'id="dk" '+(cd?'data-a="deck"':''),cd?'tap':'')}<small>Deck · ${G.deck.length}</small></div>`+
+   `<div class="pile">${top?cardHTML(top,true,da,da.includes('data-a')?'tap':''):`<div class="card empty" ${da}></div>`}<small>Discard</small></div>`+
+   `<div class="pile">${G.hold?cardHTML(G.hold,true,'id="hd"','hl'):'<div class="card empty" id="hd"></div>'}<small>In hand</small></div>`;
+}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const T={think:900,beat:350,after:1300,fly:520};
+
+// Animate a card flying from one element to another
+function fly(f,t,c,up,keep){
+  const a=f.getBoundingClientRect(),b=t.getBoundingClientRect();
+  const d=document.createElement('div');
+  d.style.cssText=`position:fixed;z-index:20;left:${a.left}px;top:${a.top}px;--w:${a.width}px;transform-origin:0 0;pointer-events:none`;
+  d.innerHTML=cardHTML(c,up);
+  document.body.appendChild(d);
+  if(!keep)f.style.visibility='hidden';
+  return d.animate([{transform:'none'},{transform:`translate(${b.left-a.left}px,${b.top-a.top}px) scale(${b.width/a.width})`}],
+    {duration:keep?380:T.fly,easing:'ease-in-out',fill:'forwards'}).finished.then(()=>d.remove());
+}
+const spin=(p,i)=>{const e=$('c'+p+i);if(e)e.animate([{transform:'rotateY(90deg)'},{transform:'none'}],{duration:400,easing:'ease-out'})};
+const busy=()=>{G.phase='anim';render()};
+
+async function deal(){
+  const ps=[];
+  for(let i=0;i<4;i++)for(let p=0;p<4;p++){
+    const e=$('c'+p+i);
+    ps.push(fly($('dk'),e,{},false,true).then(()=>e.classList.remove('inv')));
+    await sleep(110);
+  }
+  await Promise.all(ps);
+  await fly($('dk'),$('dc'),G.disc[0],true,true);
+}
+
+async function startRound(){
+  $('ov').style.display='none';
+  const d=[];SU.forEach(s=>RK.forEach(r=>d.push({r,s})));d.push({j:1},{j:1});
+  G.deck=shuf(d);
+  G.hands=[0,1,2,3].map(()=>[0,1,2,3].map(i=>({c:G.deck.pop(),up:false,k:i>1})));
+  G.disc=[G.deck.pop()];G.hold=null;G.src=null;G.last=null;
+  G.turn=(G.round-1)%4;G.phase='deal';
+  render();say('Dealing…');
+  await deal();
+  G.phase='peek';render();
+  let n=6;
+  say('Memorize your bottom two cards (<b id="cd">'+n+'</b>) <button id="rdy">Ready</button>');
+  $('rdy').onclick=endPeek;
+  clearInterval(pt);
+  pt=setInterval(()=>{n--;if(n<=0)endPeek();else $('cd').textContent=n},1000);
+}
+function endPeek(){clearInterval(pt);if(G.phase!=='peek')return;begin()}
+
+function begin(){
+  if(G.hands.every(h=>h.every(s=>s.up)))return endRound();
+  if(G.turn===0){G.phase='choose';render();say('Your turn. Tap the discard pile to take it, or tap the deck to draw.')}
+  else{G.phase='ai';render();say(NM[G.turn]+' is thinking…');setTimeout(ai,T.think)}
+}
+async function next(ms){G.phase='wait';await sleep(ms);G.turn=(G.turn+1)%4;begin()}
+function put(p,i){const s=G.hands[p][i],old=s.c;G.disc.push(old);s.c=G.hold;s.up=s.k=true;G.hold=null;G.last={p,i}}
+
+// Old card flips over and goes to the discard pile, then the held card moves into its place
+async function swap(p,i){
+  const s=G.hands[p][i],o=s.c,n=G.hold,e=$('c'+p+i);
+  const a=fly(e,$('dc'),o,true);
+  await sleep(320);
+  await Promise.all([a,fly($('hd'),e,n,true)]);
+  put(p,i);render();
+}
+
+$('table').onclick=async e=>{
+  if(G.turn!==0)return;
+  const el=e.target.closest('[data-a]');if(!el)return;
+  const a=el.dataset.a,i=+el.dataset.i,ph=G.phase;
+  if(ph==='choose'){
+    if(a==='deck'){
+      busy();const c=draw();
+      await fly($('dk'),$('hd'),c,true);
+      G.hold=c;G.src='deck';G.phase='place';render();
+      say('Tap a face-down card to swap it in, or tap the discard pile to discard this card and flip one instead.');
+    }else if(a==='disc'){
+      busy();const c=G.disc[G.disc.length-1];
+      await fly($('dc'),$('hd'),c,true);
+      G.disc.pop();G.hold=c;G.src='disc';G.phase='place';render();
+      say('Tap a face-down card to replace, or tap the discard pile to put it back.');
+    }
+  }else if(ph==='place'){
+    if(a==='slot'){busy();say('You placed '+nm(G.hold)+'.');await swap(0,i);next(T.after-300)}
+    else if(a==='disc'){
+      busy();await fly($('hd'),$('dc'),G.hold,true);
+      G.disc.push(G.hold);G.hold=null;
+      if(G.src==='disc'){G.phase='choose';render();say('Tap the discard pile to take it, or tap the deck to draw.')}
+      else{G.phase='flip';render();say('Discarded. Tap a face-down card to flip it.')}
+    }
+  }else if(ph==='flip'&&a==='slot'){
+    busy();const s=G.hands[0][i];s.up=s.k=true;G.last={p:0,i};render();spin(0,i);
+    say('You flipped '+nm(s.c)+'.');next(T.after-300);
+  }
+};
+
+async function ai(){
+  const p=G.turn,h=G.hands[p],open=[0,1,2,3].filter(i=>!h[i].up),one=open.length===1;
+  const sv=i=>h[i].k?val(h[i].c):4.5;
+  // estimated score: known cards (with matches) plus unknown cards guessed at the deck average
+  const est=cs=>handScore(cs.filter(s=>s.k).map(s=>s.c))+4.5*cs.filter(s=>!s.k).length;
+  const gain=(c,i)=>est(h)-est(h.map((s,j)=>j===i?{c,k:true}:s));
+  const best=c=>open.reduce((a,b)=>gain(c,b)>gain(c,a)?b:a);
+  const top=G.disc[G.disc.length-1],wt=top&&best(top);
+  if(top&&gain(top,wt)>=(one?.5:2.5)){
+    say(NM[p]+' takes '+nm(top)+' from the discard.');
+    await fly($('dc'),$('hd'),top,true);
+    G.disc.pop();G.hold=top;render();await sleep(T.beat);
+    await swap(p,wt);
+  }else{
+    say(NM[p]+' draws from the deck.');
+    const c=draw(),w=best(c);
+    await fly($('dk'),$('hd'),c,true);
+    G.hold=c;render();await sleep(T.beat+250);
+    if(gain(c,w)>=(one?.5:2)){
+      say(NM[p]+' keeps '+nm(c)+' and swaps it in.');
+      await swap(p,w);
+    }else{
+      say(NM[p]+' discards '+nm(c)+' and flips a card.');
+      await fly($('hd'),$('dc'),c,true);
+      G.disc.push(c);G.hold=null;render();await sleep(T.beat);
+      const mine=i=>h.some((x,j)=>j!==i&&x.k&&val(x.c)>0&&x.c.r===h[i].c.r);
+      const kn=open.filter(i=>h[i].k&&(sv(i)<=3||mine(i))),un=open.filter(i=>!h[i].k);
+      const f=kn.length?kn[0]:un.length?un[0]:open.reduce((a,b)=>sv(b)<sv(a)?b:a);
+      h[f].up=h[f].k=true;G.last={p,i:f};render();spin(p,f);
+    }
+  }
+  next(T.after);
+}
+
+function endRound(){
+  const rs=G.hands.map(h=>handScore(h.map(s=>s.c)));
+  rs.forEach((v,i)=>G.totals[i]+=v);
+  G.phase='over';render();say('Round over.');
+  const fin=G.round===9,min=Math.min(...G.totals),w=NM.filter((n,i)=>G.totals[i]===min);
+  const rows=[0,1,2,3].map(p=>`<tr class="${fin&&G.totals[p]===min?'win':''}"><td>${NM[p]}</td><td>${rs[p]}</td><td>${G.totals[p]}</td></tr>`).join('');
+  const verdict=w.length>1?w.join(' & ')+' tie':w[0]==='You'?'You win!':w[0]+' wins';
+  $('ov').innerHTML=`<div class="panel"><h2>${fin?'Game over':'Round '+G.round+' complete'}</h2>${fin?`<div class="w">${verdict}</div>`:''}<table><tr><th></th><th>Round</th><th>Total</th></tr>${rows}</table><button id="nx">${fin?'New game':'Next round'}</button></div>`;
+  $('ov').style.display='flex';
+  $('nx').onclick=()=>{if(fin)G={round:1,totals:[0,0,0,0]};else G.round++;startRound()};
+}
+
+startRound();
+</script>
+</body>
+</html>

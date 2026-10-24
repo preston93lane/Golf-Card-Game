@@ -65,6 +65,9 @@ small{font-size:10px;opacity:.8}
 .win{background:#fef08a;font-weight:700}
 .panel button{width:100%;padding:12px;font-size:16px}
 .w{font-size:20px;font-weight:700;margin:4px 0}
+[data-a]{cursor:pointer}
+#app,#table,.card{touch-action:manipulation}
+#dbg{font-size:11px;opacity:.8;text-align:center;margin-bottom:4px}
 </style>
 </head>
 <body>
@@ -100,7 +103,7 @@ small{font-size:10px;opacity:.8}
     </div>
     <div class="seat me" id="s0"></div>
   </div>
-  <div id="foot">Joker −10 · 5 −5 · King 0 · Ace 1 · 2–10 face value · Jack, Queen 10<br>Matching ranks: two cancel to 0 · a 3rd subtracts its value · a 4th subtracts again (5s and Jokers never match)</div>
+  <div id="foot"><div id="dbg"></div>Joker −10 · 5 −5 · King 0 · Ace 1 · 2–10 face value · Jack, Queen 10<br>Matching ranks: two cancel to 0 · a 3rd subtracts its value · a 4th subtracts again (5s and Jokers never match)</div>
 </div>
 <div id="ov"></div>
 
@@ -460,6 +463,7 @@ function render(){
   else if(myTurn&&ph==='flip')inst='Tap one of your face-down cards to flip it.';
   else if(!over)inst=P[cur].name+' is playing…';
   say(`<div>${esc(S.msg&&S.msg!=='none'?S.msg:'')}</div><div class="inst">${inst}</div>`);
+  $('dbg').textContent='Phase: '+ph+' · Turn: '+P[cur].name+' (seat '+(cur+1)+') · You: seat '+(me+1)+(myTurn?' · your turn':'');
 
   // round or game-over panel
   if(over){

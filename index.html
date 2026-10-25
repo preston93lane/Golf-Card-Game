@@ -65,6 +65,9 @@ small{font-size:10px;opacity:.8}
 .win{background:#fef08a;font-weight:700}
 .panel button{width:100%;padding:12px;font-size:16px}
 .w{font-size:20px;font-weight:700;margin:4px 0}
+#extra{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:100%}
+#extra:empty{display:none}
+#extra .seat{--w:min(8vw,5svh,36px)}
 .inv-back{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:999;padding:20px}
 .inv-back.show{display:flex}
 .inv-card{background:#fff;color:#111;border-radius:14px;padding:20px;width:100%;max-width:380px;font-family:system-ui,-apple-system,sans-serif;box-sizing:border-box;text-align:center}
@@ -112,6 +115,7 @@ small{font-size:10px;opacity:.8}
   <div id="msg"></div>
   <div id="table">
     <div class="seat" id="s2"></div>
+    <div id="extra"></div>
     <div id="mid">
       <div class="seat" id="s1"></div>
       <div id="ctr"></div>
@@ -177,6 +181,17 @@ const T={think:1000,beat:900,after:1300,peek:6000};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const newId=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const DEAL_MS=2600;
+const MAX_SEATS=13;
+// Seats shown = 4 minimum, plus one open seat after the last filled seat, capped at 13
+function seatCount(v){const k=Object.keys(v).filter(i=>v[i]).map(Number);const top=k.length?Math.max(...k):-1;return Math.min(MAX_SEATS,Math.max(4,top+2))}
+const NP=()=>S&&S.players?S.players.length:4;
+// Seats 0-3 are the main table slots; seats 4+ go in the #extra row
+function seatEl(pos){
+  if(pos<4)return $('s'+pos);
+  let el=$('x'+pos);
+  if(!el){el=document.createElement('div');el.id='x'+pos;el.className='seat';$('extra').appendChild(el)}
+  return el;
+}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const val=c=>c.j?-10:c.r==='K'?0:c.r==='5'?-5:c.r==='A'?1:(c.r==='J'||c.r==='Q')?10:+c.r;
 function handScore(cs){
@@ -236,7 +251,7 @@ async function enter(code,name){
   IS_HOST=(await db.ref(R+'/host').once('value')).val()===UID;
   db.ref(R+'/seats').on('value',s=>{
     const v=s.val()||{};
-    SEATS=[0,1,2,3].map(i=>v[i]||null);
+    SEATS=[...Array(seatCount(v))].map((_,i)=>v[i]||null);
     MY=SEATS.findIndex(x=>x&&x.uid===UID);
     lobbyUI();render();
   });
@@ -245,9 +260,9 @@ async function enter(code,name){
     if(S.status==='playing'){
       // host reloaded mid-game: the engine is gone, so reset the table to the lobby
       if(IS_HOST&&!E)return db.ref(R+'/state/status').set('lobby');
-      screen('app');if(S.ev&&S.ev.k==='deal'&&S.ev.id!==LASTEV&&LASTEV!==null)for(let a=0;a<4;a++)for(let j=0;j<4;j++)HIDE['s'+a+'-'+j]=1;render();if(S.ev){const ev=S.ev;if(LASTEV===null)LASTEV=ev.id;else if(ev.id!==LASTEV){LASTEV=ev.id;AQ=AQ.then(()=>animateEv(ev)).catch(()=>{for(const k in HIDE)delete HIDE[k];render()})}}
+      screen('app');if(S.ev&&S.ev.k==='deal'&&S.ev.id!==LASTEV&&LASTEV!==null)for(let a=0;a<NP();a++)for(let j=0;j<4;j++)HIDE['s'+a+'-'+j]=1;render();if(S.ev){const ev=S.ev;if(LASTEV===null)LASTEV=ev.id;else if(ev.id!==LASTEV){LASTEV=ev.id;AQ=AQ.then(()=>animateEv(ev)).catch(()=>{for(const k in HIDE)delete HIDE[k];render()})}}
     }else{
-            screen('lobby');LASTEV='';lobbyUI();
+      screen('lobby');LASTEV='';lobbyUI();
       $('ov').style.display='none';OVK='';
     }
   });
@@ -331,8 +346,8 @@ async function runGame(){
 async function dealRound(){
   const d=[];SU.forEach(s=>RK.forEach(r=>d.push({r,s})));d.push({j:1},{j:1});
   E.deck=shuf(d);
-  E.hands=[0,1,2,3].map(()=>[0,1,2,3].map(i=>({c:E.deck.pop(),up:false,k:i>1})));
-  E.disc=[E.deck.pop()];E.hold=null;E.src='none';E.turn=(E.round-1)%4;
+  E.hands=E.players.map(()=>[0,1,2,3].map(i=>({c:E.deck.pop(),up:false,k:i>1})));
+  E.disc=[E.deck.pop()];E.hold=null;E.src='none';E.turn=(E.round-1)%E.players.length;
   E.phase='deal';E.deadline=0;E.msg='';E.scores=null;
   E.ev={id:newId(),k:'deal',top:enc(E.disc[0])};
   await pub();
@@ -347,7 +362,7 @@ async function playRound(){
   while(E.hands.some(h=>h.some(s=>!s.up))){
     const p=E.turn;
     if(E.players[p].human)await humanTurn(p);else await aiTurn(p);
-    E.turn=(E.turn+1)%4;
+    E.turn=(E.turn+1)%E.players.length;
   }
 }
 
@@ -423,10 +438,10 @@ const hid=k=>HIDE[k]?'style="visibility:hidden"':'';
 function keyEl(k){
   if(k[0]==='p')return document.querySelectorAll('#ctr .pile')[+k[1]].querySelector('.card');
   const [a,j]=k.slice(1).split('-').map(Number);
-  return $('s'+((a-MY+4)%4)).querySelectorAll('.card')[j];
+  return seatEl((a-MY+NP())%NP()).querySelectorAll('.card')[j];
 }
 function ghostOf(a,w){
-  const r=$('s'+((a-MY+4)%4)).getBoundingClientRect();
+  const r=seatEl((a-MY+NP())%NP()).getBoundingClientRect();
   const cx=r.left+r.width/2,cy=r.top+r.height/2;
   return {left:cx-w/2,top:cy-w*0.7,width:w,height:w*1.4};
 }
@@ -450,7 +465,7 @@ async function animateEv(ev){
   const handR=a=>a===MY?pileR(2):ghostOf(a,W);
   if(ev.k==='deal'){
     const dr=pileR(0),jobs=[];
-    for(let j=0;j<4;j++)for(let a=0;a<4;a++){
+    for(let j=0;j<4;j++)for(let a=0;a<NP();a++){
       const k='s'+a+'-'+j,code=null;
       jobs.push(fly(dr,keyEl(k).getBoundingClientRect(),code,k));
       await sleep(110);
@@ -474,12 +489,12 @@ async function animateEv(ev){
 function render(){
   if(!S||S.status!=='playing'||!S.players)return;
   if(MY<0){say('<div>This room is full.</div>');return}
-  const P=S.players,cur=S.turn,me=MY,myTurn=cur===me,ph=S.phase,over=ph==='over';
+  const P=S.players,N=P.length,cur=S.turn,me=MY,myTurn=cur===me,ph=S.phase,over=ph==='over';
   $('rd').textContent='Round '+S.round+' of 9';
   $('sc').innerHTML=P.map((p,a)=>`<div class="chip ${cur===a&&!over?'on':''}">${esc(p.name)}<b>${S.totals[a]}</b></div>`).join('');
 
-  for(let pos=0;pos<4;pos++){
-    const a=(me+pos)%4,el=$('s'+pos);
+  for(let pos=0;pos<N;pos++){
+    const a=(me+pos)%N,el=seatEl(pos);
     const up=S.hands[a].map(x=>x==='_'?null:dec(x));
     const sc=handScore(up.filter(Boolean));
     const cnt={};up.forEach(c=>{if(c&&val(c)>0)cnt[c.r]=(cnt[c.r]||0)+1});
@@ -494,6 +509,7 @@ function render(){
     el.className='seat'+(pos===0?' me':'');
     el.innerHTML=`<div class="lbl ${cur===a&&!over?'on':''}">${esc(P[a].name)} · ${sc}</div><div class="grid">${cells}</div>`;
   }
+  [...$('extra').children].forEach(c=>{if(+c.id.slice(1)>=N)c.remove()});
 
   const top=S.top!=='_'?dec(S.top):null;
   const canDeck=myTurn&&ph==='choose',canDisc=myTurn&&(ph==='choose'||ph==='place')&&top;
@@ -529,8 +545,7 @@ function render(){
     OVK='';$('ov').style.display='none';
   }
 }
-</script>
-<script>
+
 /* ---------- invite links ---------- */
 const Invite=(()=>{
   let joinCode=null,pickedSeat=null,seats=[null,null,null,null],started=false;
@@ -557,7 +572,10 @@ const Invite=(()=>{
   };
   $('invText').onclick=()=>{
     const body=`Join my Golf game! Tap to join: ${linkFor(CODE)}`;
-    location.href=`sms:&body=${encodeURIComponent(body)}`;
+    const ua=navigator.userAgent||'';
+    const isIOS=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    // iOS wants "&body=", Android wants "?body="
+    location.href=`sms:${isIOS?'&':'?'}body=${encodeURIComponent(body)}`;
   };
 
   /* guest side */
@@ -594,7 +612,7 @@ const Invite=(()=>{
     }
     db.ref(`rooms/${joinCode}/seats`).on('value',s=>{
       const v=s.val()||{};
-      seats=[0,1,2,3].map(i=>v[i]||null);
+      seats=[...Array(seatCount(v))].map((_,i)=>v[i]||null);
       if(pickedSeat!==null&&seats[pickedSeat]){pickedSeat=null;$('invMsg').textContent='That seat was just taken. Pick another.'}
       renderSeats();
     });

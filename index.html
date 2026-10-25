@@ -247,7 +247,8 @@ async function enter(code,name){
       if(IS_HOST&&!E)return db.ref(R+'/state/status').set('lobby');
       screen('app');if(S.ev&&S.ev.k==='deal'&&S.ev.id!==LASTEV&&LASTEV!==null)for(let a=0;a<4;a++)for(let j=0;j<4;j++)HIDE['s'+a+'-'+j]=1;render();if(S.ev){const ev=S.ev;if(LASTEV===null)LASTEV=ev.id;else if(ev.id!==LASTEV){LASTEV=ev.id;AQ=AQ.then(()=>animateEv(ev)).catch(()=>{for(const k in HIDE)delete HIDE[k];render()})}}
     }else{
-      screen('lobby');LASTEV='';lobbyUI();
+            screen('lobby');LASTEV='';lobbyUI();
+      $('ov').style.display='none';OVK='';
     }
   });
   db.ref(R+'/private/'+UID).on('value',s=>{PV=s.val()||{};render()});

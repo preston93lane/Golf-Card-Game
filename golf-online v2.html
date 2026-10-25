@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Golf</title>
+<style>
+:root{--felt:#14532d;--felt2:#0b2e1a;--gold:#facc15}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;min-height:100%;background:var(--felt2);color:#f8fafc;font-family:system-ui,-apple-system,Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+.screen{min-height:100svh;background:radial-gradient(circle at 50% 45%,var(--felt),var(--felt2))}
+#menu,#lobby{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;min-height:100svh}
+h1{margin:0;font-size:40px;letter-spacing:2px}
+input{font:inherit;width:100%;max-width:300px;padding:12px;border-radius:10px;border:0;text-align:center;font-size:18px}
+#code{text-transform:uppercase;letter-spacing:4px}
+button{font:inherit;font-weight:700;background:var(--gold);color:#111;border:0;border-radius:8px;padding:10px 16px;font-size:16px}
+button:disabled{opacity:.5}
+.btn-w{width:100%;max-width:300px}
+.or{opacity:.7;font-size:13px;margin:6px 0}
+#err{color:#fca5a5;min-height:20px;font-size:14px}
+.dim{opacity:.6;font-size:14px}
+.box{background:#0006;border-radius:14px;padding:12px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0004;border-radius:8px;padding:10px 12px}
+.code{font-size:34px;font-weight:800;letter-spacing:6px;color:var(--gold)}
+#app{flex-direction:column;gap:4px;padding:max(env(safe-area-inset-top),8px) 8px max(env(safe-area-inset-bottom),8px)}
+#app:not([hidden]){display:flex}
+#top{display:flex;align-items:center;gap:8px}
+#rd{font-weight:700;font-size:13px;white-space:nowrap}
+#sc{display:flex;gap:4px;flex:1}
+.chip{flex:1;background:#0005;border:2px solid transparent;border-radius:8px;padding:2px 4px;text-align:center;font-size:11px;display:flex;flex-direction:column}
+.chip b{font-size:15px}
+.chip.on{border-color:var(--gold)}
+#msg{min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:14px;padding:2px 6px}
+.inst{font-size:12px;opacity:.85}
+#table{flex:1;display:flex;flex-direction:column;justify-content:space-around;align-items:center}
+#mid{width:100%;display:flex;justify-content:space-between;align-items:center}
+.seat{--w:min(10.5vw,6.2svh,46px);display:flex;flex-direction:column;align-items:center;gap:3px}
+.seat.me{--w:min(17vw,9.5svh,70px)}
+#ctr{--w:min(13vw,52px);display:flex;gap:6px}
+.pile{display:flex;flex-direction:column;align-items:center;gap:2px}
+small{font-size:10px;opacity:.8}
+.lbl{font-size:12px;font-weight:700;padding:1px 9px;border-radius:10px}
+.lbl.on{background:var(--gold);color:#111}
+.grid{display:grid;grid-template-columns:repeat(2,var(--w));gap:5px}
+.card{width:var(--w);height:calc(var(--w)*1.4);border-radius:calc(var(--w)*.12);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;line-height:1.05;box-shadow:0 2px 4px #0007}
+.back{background:repeating-linear-gradient(45deg,#1e3a8a 0 5px,#2f55b8 5px 10px);border:2px solid #fff}
+.face{background:#fff;color:#111;font-size:calc(var(--w)*.42)}
+.face span{font-size:calc(var(--w)*.4)}
+.face.red{color:#c81e1e}
+.joker{color:#7c3aed}
+.joker small{font-size:calc(var(--w)*.2);opacity:1}
+.empty{border:2px dashed #fff5;box-shadow:none}
+.tap{outline:3px solid var(--gold);animation:p 1s infinite}
+@keyframes p{50%{outline-color:#facc1544}}
+.mt{box-shadow:0 0 0 3px #4ade80,0 2px 4px #0007}
+.hl{box-shadow:0 0 0 3px #38bdf8,0 2px 4px #0007}
+.peek{outline:3px dashed #38bdf8}
+#foot{font-size:10.5px;text-align:center;opacity:.75}
+#ov{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:9}
+.panel{background:#fff;color:#111;border-radius:16px;padding:20px;width:100%;max-width:340px;text-align:center}
+.panel h2{margin:0 0 6px}
+.panel table{width:100%;border-collapse:collapse;margin:10px 0 16px}
+.panel td,.panel th{padding:6px;border-bottom:1px solid #ddd}
+.win{background:#fef08a;font-weight:700}
+.panel button{width:100%;padding:12px;font-size:16px}
+.w{font-size:20px;font-weight:700;margin:4px 0}
+.inv-back{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:999;padding:20px}
+.inv-back.show{display:flex}
+.inv-card{background:#fff;color:#111;border-radius:14px;padding:20px;width:100%;max-width:380px;font-family:system-ui,-apple-system,sans-serif;box-sizing:border-box;text-align:center}
+.inv-card h2{margin:0 0 6px;font-size:20px}
+.inv-card p{margin:6px 0;font-size:14px;color:#444}
+.inv-link{word-break:break-all;background:#f2f2f2;padding:10px;border-radius:8px;font-size:14px;margin:10px 0;user-select:text;-webkit-user-select:text}
+.inv-row{display:flex;gap:8px;margin-top:10px}
+.inv-btn{flex:1;padding:12px;border:0;border-radius:10px;font-size:16px;background:#2e7d32;color:#fff;cursor:pointer;font-weight:700}
+.inv-btn.alt{background:#777}
+.inv-btn:disabled{opacity:.5}
+.inv-input{width:100%;padding:12px;font-size:18px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;margin-top:8px;text-align:center;user-select:text;-webkit-user-select:text}
+.inv-seats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.inv-seat{padding:14px;border-radius:10px;border:2px solid #2e7d32;background:#fff;color:#111;font-size:15px;cursor:pointer}
+.inv-seat.sel{background:#2e7d32;color:#fff}
+.inv-seat:disabled{border-color:#bbb;color:#999;cursor:not-allowed;background:#f5f5f5}
+.inv-msg{font-size:14px;color:#b00020;min-height:18px;margin-top:8px}
+.inv-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none;font-size:14px}
+.inv-toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="menu" class="screen">
+  <h1>Golf</h1>
+  <input id="name" placeholder="Your name" maxlength="12">
+  <button id="create" class="btn-w" disabled>Create game</button>
+  <div class="or">or join a friend's game</div>
+  <input id="code" placeholder="Room code" maxlength="4" autocapitalize="characters">
+  <button id="join" class="btn-w" disabled>Join game</button>
+  <div id="err"></div>
+  <div id="conn" class="dim">Connecting…</div>
+</div>
+
+<div id="lobby" class="screen" hidden>
+  <div class="dim">Room code</div>
+  <div class="code" id="rc"></div>
+  <div class="box" id="seats"></div>
+  <button id="invite" class="btn-w">Invite players</button>
+  <button id="start" hidden>Start game</button>
+  <div id="lmsg" class="dim"></div>
+</div>
+
+<div id="app" class="screen" hidden>
+  <div id="top"><div id="rd"></div><div id="sc"></div></div>
+  <div id="msg"></div>
+  <div id="table">
+    <div class="seat" id="s2"></div>
+    <div id="mid">
+      <div class="seat" id="s1"></div>
+      <div id="ctr"></div>
+      <div class="seat" id="s3"></div>
+    </div>
+    <div class="seat me" id="s0"></div>
+  </div>
+  <div id="foot">Joker −10 · 5 −5 · King 0 · Ace 1 · 2–10 face value · Jack, Queen 10<br>Matching ranks: two cancel to 0 · a 3rd subtracts its value · a 4th subtracts again (5s and Jokers never match)</div>
+</div>
+<div id="ov"></div>
+
+<!-- Host invite sheet -->
+<div class="inv-back" id="invHostBack">
+  <div class="inv-card">
+    <h2>Invite players</h2>
+    <p>Send this link to your friends. They type their name and pick a seat.</p>
+    <div class="inv-link" id="invLink"></div>
+    <div class="inv-row">
+      <button class="inv-btn" id="invCopy">Copy link</button>
+      <button class="inv-btn" id="invText">Text it</button>
+    </div>
+    <div class="inv-row">
+      <button class="inv-btn alt" id="invClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Guest join sheet -->
+<div class="inv-back" id="invJoinBack">
+  <div class="inv-card">
+    <h2>Join game <span id="invJoinCode"></span></h2>
+    <p>Type your name, then tap an open seat.</p>
+    <input class="inv-input" id="invName" maxlength="12" placeholder="Your name" autocomplete="off">
+    <div class="inv-seats" id="invSeats"></div>
+    <div class="inv-msg" id="invMsg"></div>
+    <div class="inv-row">
+      <button class="inv-btn" id="invGo" disabled>Join</button>
+    </div>
+  </div>
+</div>
+<div class="inv-toast" id="invToast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD6XYGPqYrIVpaNGbU9v2VwByVjyCpHdXk",
+  authDomain: "golf-2a8eb.firebaseapp.com",
+  databaseURL: "https://golf-2a8eb-default-rtdb.firebaseio.com",
+  projectId: "golf-2a8eb",
+  storageBucket: "golf-2a8eb.firebasestorage.app",
+  messagingSenderId: "900615888538",
+  appId: "1:900615888538:web:555d88dec6f1df27ba4923"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database(), auth=firebase.auth();
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const SU=['♠','♥','♦','♣'],RK=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const T={think:1000,beat:900,after:1300,peek:6000};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const newId=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const DEAL_MS=2600;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const val=c=>c.j?-10:c.r==='K'?0:c.r==='5'?-5:c.r==='A'?1:(c.r==='J'||c.r==='Q')?10:+c.r;
+function handScore(cs){
+  const m={};let t=0;
+  cs.forEach(c=>{const v=val(c);if(v<=0)t+=v;else(m[c.r]=m[c.r]||[]).push(v)});
+  Object.values(m).forEach(a=>{t+=a.length===1?a[0]:-(a.length-2)*a[0]});
+  return t;
+}
+const show=c=>c.j?'Joker':c.r+c.s;
+const enc=c=>c.j?'JK':c.r+c.s;            // card as a short string for the database
+const dec=s=>s==='JK'?{j:1}:{r:s.slice(0,-1),s:s.slice(-1)};
+function shuf(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function cardHTML(c,up,attrs,cls){
+  attrs=attrs||'';cls=cls||'';
+  if(!up)return `<div class="card back ${cls}" ${attrs}></div>`;
+  if(c.j)return `<div class="card face joker ${cls}" ${attrs}><b>★</b><small>JOKER</small></div>`;
+  const red=c.s==='♥'||c.s==='♦';
+  return `<div class="card face ${red?'red':''} ${cls}" ${attrs}><b>${c.r}</b><span>${c.s}</span></div>`;
+}
+function say(h){$('msg').innerHTML=h}
+const screen=id=>['menu','lobby','app'].forEach(x=>$(x).hidden=x!==id);
+
+/* ---------- client state ---------- */
+let UID=null,CODE='',MY=-1,IS_HOST=false,MYNAME='',SEATS=[null,null,null,null];
+let S=null;      // public room state (everyone sees this)
+let PV={};       // this player's private data (their face-down cards and held card)
+let E=null;      // host-only engine state (only the host's phone has this)
+let OVK='';
+
+auth.onAuthStateChanged(u=>{if(u){UID=u.uid;$('create').disabled=$('join').disabled=false;$('conn').textContent=''}});
+auth.signInAnonymously().catch(e=>{$('conn').textContent='Could not connect: '+e.message});
+
+const err=m=>$('err').textContent=m;
+const nameIn=()=>{const n=$('name').value.trim().slice(0,12);if(!n)err('Enter your name first');return n};
+const LET='ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+/* ---------- lobby ---------- */
+async function createGame(){
+  const name=nameIn();if(!name)return;
+  let code;
+  do{code=[...Array(4)].map(()=>LET[Math.random()*LET.length|0]).join('')}
+  while((await db.ref(`rooms/${code}/host`).once('value')).exists());
+  await db.ref(`rooms/${code}/host`).set(UID);                         // host first, so rules allow the rest
+  await db.ref(`rooms/${code}`).update({state:{status:'lobby'},'seats/0':{uid:UID,name}});
+  enter(code,name);
+}
+async function joinGame(){
+  const name=nameIn();if(!name)return;
+  const code=$('code').value.trim().toUpperCase();
+  if(code.length!==4)return err('Enter the 4-letter room code');
+  if(!(await db.ref(`rooms/${code}/host`).once('value')).exists())return err('No game with that code');
+  enter(code,name);
+}
+async function enter(code,name){
+  CODE=code;MYNAME=name;err('');
+  const R='rooms/'+code;
+  IS_HOST=(await db.ref(R+'/host').once('value')).val()===UID;
+  db.ref(R+'/seats').on('value',s=>{
+    const v=s.val()||{};
+    SEATS=[0,1,2,3].map(i=>v[i]||null);
+    MY=SEATS.findIndex(x=>x&&x.uid===UID);
+    lobbyUI();render();
+  });
+  db.ref(R+'/state').on('value',s=>{
+    S=s.val()||{status:'lobby'};
+    if(S.status==='playing'){
+      // host reloaded mid-game: the engine is gone, so reset the table to the lobby
+      if(IS_HOST&&!E)return db.ref(R+'/state/status').set('lobby');
+      screen('app');if(S.ev&&S.ev.k==='deal'&&S.ev.id!==LASTEV&&LASTEV!==null)for(let a=0;a<4;a++)for(let j=0;j<4;j++)HIDE['s'+a+'-'+j]=1;render();if(S.ev){const ev=S.ev;if(LASTEV===null)LASTEV=ev.id;else if(ev.id!==LASTEV){LASTEV=ev.id;AQ=AQ.then(()=>animateEv(ev)).catch(()=>{for(const k in HIDE)delete HIDE[k];render()})}}
+    }else{
+      screen('lobby');LASTEV='';lobbyUI();
+    }
+  });
+  db.ref(R+'/private/'+UID).on('value',s=>{PV=s.val()||{};render()});
+}
+function lobbyUI(){
+  if(!CODE||!S||S.status==='playing')return;
+  $('rc').textContent=CODE;
+  $('seats').innerHTML=SEATS.map((s,i)=>`<div class="row"><span>Seat ${i+1}</span>${
+    s?`<span>${esc(s.name)}${s.uid===UID?' (you)':''}</span>`:
+    MY===-1?`<button data-sit="${i}">Sit here</button>`:'<span class="dim">Computer</span>'}</div>`).join('');
+  $('start').hidden=!IS_HOST;
+  const n=SEATS.filter(Boolean).length;
+  $('lmsg').textContent=IS_HOST?`${n} player${n===1?'':'s'} seated. Empty seats will be filled by computers.`:'Waiting for the host to start the game…';
+}
+$('seats').onclick=e=>{
+  const b=e.target.closest('[data-sit]');if(!b)return;
+  db.ref(`rooms/${CODE}/seats/${+b.dataset.sit}`).transaction(cur=>cur?undefined:{uid:UID,name:MYNAME});
+};
+$('create').onclick=createGame;
+$('join').onclick=joinGame;
+$('start').onclick=()=>{
+  if(E)return;
+  const players=SEATS.map((s,i)=>s?{uid:s.uid,name:s.name,human:true}:{name:'Computer',human:false});
+  E={players,round:1,totals:[0,0,0,0],deck:[],disc:[],hands:[],hold:null,src:'',turn:0,phase:'',msg:'',deadline:0,scores:null,go:null,seq:0};
+  runGame();
+};
+
+/* ---------- host engine: runs the deck, computer turns, and turn order ---------- */
+function draw(){if(!E.deck.length){const t=E.disc.pop();E.deck=shuf(E.disc);E.disc=t?[t]:[]}return E.deck.pop()}
+const isDown=(p,i)=>!E.hands[p][i].up;
+function put(p,i){const h=E.hands[p];E.disc.push(h[i].c);h[i]={c:E.hold,up:true,k:true};E.hold=null}
+function swapEv(p,i){const n=E.hold,o=E.hands[p][i].c;put(p,i);E.ev={id:newId(),k:'swap',p,i,c:enc(n),o:enc(o)}}
+function flip(p,i){const s=E.hands[p][i];s.up=true;s.k=true}
+
+// Writes the public state and each human's private data in one update
+async function pub(){
+  E.seq++;
+  const P=E.players,upd={};
+  upd.state={
+    status:'playing',seq:E.seq,round:E.round,turn:E.turn,phase:E.phase,msg:E.msg||'none',src:E.src||'none',
+    deck:E.deck.length,top:E.disc.length?enc(E.disc[E.disc.length-1]):'_',totals:E.totals,
+    deadline:E.deadline||0,players:P.map(p=>({name:p.name,human:p.human})),
+    hands:E.hands.map(h=>h.map(s=>s.up?enc(s.c):'_')),
+    scores:E.scores||null,ev:E.ev||null,final:!!(E.phase==='over'&&E.round===9)
+  };
+  P.forEach((p,i)=>{if(p.human)upd['private/'+p.uid]={hand:E.hands[i].map(s=>enc(s.c)),hold:(E.turn===i&&E.hold)?enc(E.hold):null}});
+  await db.ref('rooms/'+CODE).update(upd);
+}
+
+// Host waits here for the actions of one human; invalid or stale actions are discarded
+function waitAct(uid,ok){
+  return new Promise(res=>{
+    const r=db.ref(`rooms/${CODE}/act/${uid}`);
+    const h=s=>{
+      const a=s.val();if(!a)return;
+      if(a.seq===E.seq&&ok(a)){r.off('value',h);r.remove();res(a)}
+      else r.remove();
+    };
+    r.on('value',h);
+  });
+}
+function waitHost(){return new Promise(r=>{E.go=r})}
+
+async function runGame(){
+  try{
+    while(true){
+      await dealRound();
+      await playRound();
+      E.scores=E.hands.map(h=>handScore(h.map(s=>s.c)));
+      E.scores.forEach((v,i)=>E.totals[i]+=v);
+      E.phase='over';E.src='none';E.msg='Round '+E.round+' is over.';
+      await pub();
+      await waitHost();
+      if(E.round===9){await db.ref('rooms/'+CODE+'/state').set({status:'lobby'});E=null;return}
+      E.round++;
+    }
+  }catch(e){console.error(e);say('Game stopped: '+e.message)}
+}
+
+async function dealRound(){
+  const d=[];SU.forEach(s=>RK.forEach(r=>d.push({r,s})));d.push({j:1},{j:1});
+  E.deck=shuf(d);
+  E.hands=[0,1,2,3].map(()=>[0,1,2,3].map(i=>({c:E.deck.pop(),up:false,k:i>1})));
+  E.disc=[E.deck.pop()];E.hold=null;E.src='none';E.turn=(E.round-1)%4;
+  E.phase='deal';E.deadline=0;E.msg='';E.scores=null;
+  E.ev={id:newId(),k:'deal',top:enc(E.disc[0])};
+  await pub();
+  await sleep(DEAL_MS);
+  E.phase='peek';E.deadline=Date.now()+T.peek;
+  await pub();
+  await sleep(T.peek);
+  E.deadline=0;
+}
+
+async function playRound(){
+  while(E.hands.some(h=>h.some(s=>!s.up))){
+    const p=E.turn;
+    if(E.players[p].human)await humanTurn(p);else await aiTurn(p);
+    E.turn=(E.turn+1)%4;
+  }
+}
+
+async function humanTurn(p){
+  const uid=E.players[p].uid,nm=E.players[p].name;
+  while(true){
+    E.phase='choose';E.hold=null;E.src='none';E.msg=nm+"'s turn.";await pub();
+    const a=await waitAct(uid,x=>x.type==='deck'||x.type==='disc');
+    if(a.type==='deck'){E.hold=draw();E.src='deck';E.msg=nm+' drew from the deck.'}
+    else{E.hold=E.disc.pop();E.src='disc';E.msg=nm+' took the '+show(E.hold)+' from the discard.'}
+    E.ev={id:newId(),k:'draw',p,src:E.src,c:E.src==='disc'?enc(E.hold):null};
+    E.phase='place';await pub();
+    const b=await waitAct(uid,x=>(x.type==='slot'&&isDown(p,x.i))||x.type==='discard');
+    if(b.type==='slot'){
+      const n=E.hold;swapEv(p,b.i);E.msg=nm+' swapped in the '+show(n)+'.';await pub();return;
+    }
+    E.ev={id:newId(),k:'discard',p,c:enc(E.hold)};E.disc.push(E.hold);E.hold=null;
+    if(E.src==='disc'){E.msg=nm+' put the card back.';continue}
+    E.phase='flip';E.msg=nm+' discarded it and must flip a card.';await pub();
+    const c=await waitAct(uid,x=>x.type==='slot'&&isDown(p,x.i));
+    flip(p,c.i);E.ev={id:newId(),k:'flip',p,i:c.i};E.msg=nm+' flipped the '+show(E.hands[p][c.i].c)+'.';await pub();return;
+  }
+}
+
+async function aiTurn(p){
+  const h=E.hands[p],nm=E.players[p].name;
+  const open=[0,1,2,3].filter(i=>!h[i].up),one=open.length===1;
+  // known cards score exactly, unknown face-down cards count as an average 4.5
+  const est=cs=>handScore(cs.filter(s=>s.k).map(s=>s.c))+4.5*cs.filter(s=>!s.k).length;
+  const gain=(c,i)=>est(h)-est(h.map((s,j)=>j===i?{c,k:true}:s));
+  const best=c=>open.reduce((a,b)=>gain(c,b)>gain(c,a)?b:a);
+  const top=E.disc[E.disc.length-1];
+  E.phase='ai';E.src='none';E.msg=nm+' is thinking…';await pub();await sleep(T.think);
+  if(top&&gain(top,best(top))>=(one?.5:2.5)){
+    const w=best(top);
+    E.hold=E.disc.pop();E.src='disc';E.msg=nm+' took the '+show(top)+' from the discard.';E.ev={id:newId(),k:'draw',p,src:'disc',c:enc(top)};await pub();await sleep(T.beat);
+    swapEv(p,w);E.msg=nm+' swapped it in.';
+  }else{
+    const c=draw(),w=best(c);
+    E.hold=c;E.src='deck';E.msg=nm+' drew from the deck.';E.ev={id:newId(),k:'draw',p,src:'deck',c:null};await pub();await sleep(T.beat);
+    if(gain(c,w)>=(one?.5:2)){
+      swapEv(p,w);E.msg=nm+' swapped in the '+show(c)+'.';
+    }else{
+      E.ev={id:newId(),k:'discard',p,c:enc(c)};E.disc.push(c);E.hold=null;await pub();await sleep(T.beat);
+      const unk=open.filter(i=>!h[i].k),f=unk.length?unk[0]:open[0];
+      flip(p,f);E.ev={id:newId(),k:'flip',p,i:f};E.msg=nm+' discarded the '+show(c)+' and flipped a card.';
+    }
+  }
+  E.hold=null;await pub();await sleep(T.after);
+}
+
+/* ---------- player actions ---------- */
+function act(o){o.seq=S.seq;db.ref(`rooms/${CODE}/act/${UID}`).set(o).catch(e=>say('Move failed: '+e.message))}
+
+$('app').onclick=e=>{
+  const el=e.target.closest('[data-a]');
+  if(!el||!S||S.turn!==MY)return;
+  const a=el.dataset.a,ph=S.phase;
+  if(a==='deck'&&ph==='choose')act({type:'deck'});
+  else if(a==='disc'&&ph==='choose')act({type:'disc'});
+  else if(a==='disc'&&ph==='place')act({type:'discard'});
+  else if(a==='slot'&&(ph==='place'||ph==='flip'))act({type:'slot',i:+el.dataset.i});
+};
+$('ov').onclick=e=>{if(e.target.id==='nx'&&E&&E.go){const g=E.go;E.go=null;g()}};
+
+// Redraw the peek countdown while it runs
+setInterval(()=>{if(S&&S.phase==='peek')render()},500);
+
+/* ---------- animations: each state change carries one event, and every phone replays it ---------- */
+const HIDE={};
+let LASTEV=null,AQ=Promise.resolve();
+const hid=k=>HIDE[k]?'style="visibility:hidden"':'';
+function keyEl(k){
+  if(k[0]==='p')return document.querySelectorAll('#ctr .pile')[+k[1]].querySelector('.card');
+  const [a,j]=k.slice(1).split('-').map(Number);
+  return $('s'+((a-MY+4)%4)).querySelectorAll('.card')[j];
+}
+function ghostOf(a,w){
+  const r=$('s'+((a-MY+4)%4)).getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  return {left:cx-w/2,top:cy-w*0.7,width:w,height:w*1.4};
+}
+function fly(fr,tr,code,key){
+  if(!fr||!tr)return Promise.resolve();
+  const w=fr.width||1,el=key?keyEl(key):null;
+  if(key){HIDE[key]=1;if(el)el.style.visibility='hidden'}
+  const d=document.createElement('div');
+  d.style.cssText=`position:fixed;z-index:20;pointer-events:none;left:${fr.left}px;top:${fr.top}px;--w:${w}px`;
+  d.innerHTML=cardHTML(code?dec(code):null,!!code);
+  document.body.appendChild(d);
+  return d.animate([{transform:'none'},{transform:`translate(${tr.left-fr.left}px,${tr.top-fr.top}px) scale(${tr.width/w})`}],
+    {duration:520,easing:'ease-in-out',fill:'forwards'}).finished.then(()=>{
+      d.remove();
+      if(key){delete HIDE[key];const e=keyEl(key);if(e)e.style.visibility=''}
+    });
+}
+async function animateEv(ev){
+  const W=keyEl('p0').getBoundingClientRect().width;
+  const pileR=i=>keyEl('p'+i).getBoundingClientRect();
+  const handR=a=>a===MY?pileR(2):ghostOf(a,W);
+  if(ev.k==='deal'){
+    const dr=pileR(0),jobs=[];
+    for(let j=0;j<4;j++)for(let a=0;a<4;a++){
+      const k='s'+a+'-'+j,code=null;
+      jobs.push(fly(dr,keyEl(k).getBoundingClientRect(),code,k));
+      await sleep(110);
+    }
+    await Promise.all(jobs);
+    await fly(dr,pileR(1),ev.top,'p1');
+  }else if(ev.k==='draw'){
+    await fly(pileR(ev.src==='deck'?0:1),handR(ev.p),ev.src==='disc'?ev.c:(ev.p===MY?PV.hold:null),ev.p===MY?'p2':null);
+  }else if(ev.k==='swap'){
+    const k='s'+ev.p+'-'+ev.i,sr=keyEl(k).getBoundingClientRect();
+    await Promise.all([fly(handR(ev.p),sr,ev.c,k),fly(sr,pileR(1),ev.o,'p1')]);
+  }else if(ev.k==='discard'){
+    await fly(handR(ev.p),pileR(1),ev.c,'p1');
+  }else if(ev.k==='flip'){
+    const el=keyEl('s'+ev.p+'-'+ev.i);
+    if(el)await el.animate([{transform:'rotateY(90deg)'},{transform:'none'}],{duration:400,easing:'ease-out'}).finished;
+  }
+}
+
+/* ---------- drawing (everyone, from public state plus own private data) ---------- */
+function render(){
+  if(!S||S.status!=='playing'||!S.players)return;
+  if(MY<0){say('<div>This room is full.</div>');return}
+  const P=S.players,cur=S.turn,me=MY,myTurn=cur===me,ph=S.phase,over=ph==='over';
+  $('rd').textContent='Round '+S.round+' of 9';
+  $('sc').innerHTML=P.map((p,a)=>`<div class="chip ${cur===a&&!over?'on':''}">${esc(p.name)}<b>${S.totals[a]}</b></div>`).join('');
+
+  for(let pos=0;pos<4;pos++){
+    const a=(me+pos)%4,el=$('s'+pos);
+    const up=S.hands[a].map(x=>x==='_'?null:dec(x));
+    const sc=handScore(up.filter(Boolean));
+    const cnt={};up.forEach(c=>{if(c&&val(c)>0)cnt[c.r]=(cnt[c.r]||0)+1});
+    const cells=up.map((c,j)=>{const hk=hid('s'+a+'-'+j);
+      if(c)return cardHTML(c,true,hk,cnt[c.r]>1&&val(c)>0?'mt':'');
+      if(a===me&&PV.hand){
+        const real=dec(PV.hand[j]),pk=ph==='peek'&&j>1,can=myTurn&&(ph==='place'||ph==='flip');
+        return cardHTML(real,pk,`${can?`data-a="slot" data-i="${j}"`:''} ${hk}`,(can?'tap ':'')+(pk?'peek':''));
+      }
+      return cardHTML(null,false,hk,'');
+    }).join('');
+    el.className='seat'+(pos===0?' me':'');
+    el.innerHTML=`<div class="lbl ${cur===a&&!over?'on':''}">${esc(P[a].name)} · ${sc}</div><div class="grid">${cells}</div>`;
+  }
+
+  const top=S.top!=='_'?dec(S.top):null;
+  const canDeck=myTurn&&ph==='choose',canDisc=myTurn&&(ph==='choose'||ph==='place')&&top;
+  $('ctr').innerHTML=
+    `<div class="pile">${cardHTML(null,false,`${canDeck?'data-a="deck"':''} ${hid('p0')}`,canDeck?'tap':'')}<small>Deck · ${S.deck}</small></div>`+
+    `<div class="pile">${top?cardHTML(top,true,`${canDisc?'data-a="disc"':''} ${hid('p1')}`,canDisc?'tap':''):'<div class="card empty"></div>'}<small>Discard</small></div>`+
+    `<div class="pile">${PV.hold?cardHTML(dec(PV.hold),true,hid('p2'),'hl'):'<div class="card empty"></div>'}<small>In hand</small></div>`;
+
+  let inst='';
+  if(ph==='deal')inst='Dealing…';else if(ph==='peek')inst='Memorize your bottom two cards · '+Math.max(0,Math.ceil(((S.deadline||0)-Date.now())/1000))+'s';
+  else if(myTurn&&ph==='choose')inst='Your turn. Tap the discard pile or the deck.';
+  else if(myTurn&&ph==='place')inst=S.src==='disc'
+    ?'Tap one of your face-down cards to swap it in, or tap the discard pile to put it back.'
+    :'Tap one of your face-down cards to swap it in, or tap the discard pile to discard and flip one.';
+  else if(myTurn&&ph==='flip')inst='Tap one of your face-down cards to flip it.';
+  else if(!over)inst=P[cur].name+' is playing…';
+  say(`<div>${esc(S.msg&&S.msg!=='none'?S.msg:'')}</div><div class="inst">${inst}</div>`);
+
+  // round or game-over panel
+  if(over){
+    const fin=S.final,T2=S.totals,min=Math.min(...T2);
+    const key=S.round+ph+(fin?'f':'');
+    if(key!==OVK){
+      OVK=key;
+      const win=P.filter((_,a)=>T2[a]===min).map(p=>p.name);
+      const verdict=fin?`<div class="w">${win.length>1?win.join(' & ')+' tie!':win[0]+' wins!'}</div>`:'';
+      const rows=P.map((p,a)=>`<tr class="${fin&&T2[a]===min?'win':''}"><td>${esc(p.name)}</td><td>${S.scores?S.scores[a]:''}</td><td>${T2[a]}</td></tr>`).join('');
+      const btn=IS_HOST?`<button id="nx">${fin?'Back to lobby':'Next round'}</button>`:'<div style="opacity:.6">Waiting for the host…</div>';
+      $('ov').innerHTML=`<div class="panel"><h2>${fin?'Game over':'Round '+S.round+' complete'}</h2>${verdict}<table><tr><th></th><th>Round</th><th>Total</th></tr>${rows}</table>${btn}</div>`;
+    }
+    $('ov').style.display='flex';
+  }else{
+    OVK='';$('ov').style.display='none';
+  }
+}
+</script>
+<script>
+/* ---------- invite links ---------- */
+const Invite=(()=>{
+  let joinCode=null,pickedSeat=null,seats=[null,null,null,null],started=false;
+  const toastEl=$('invToast');
+  const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(toastEl._h);toastEl._h=setTimeout(()=>toastEl.classList.remove('show'),1800)};
+  const linkFor=c=>`${location.origin}${location.pathname}?join=${c}`;
+
+  /* host side */
+  function openHost(){
+    const url=linkFor(CODE);
+    $('invLink').textContent=url;
+    $('invHostBack').classList.add('show');
+  }
+  $('invite').onclick=openHost;
+  $('invClose').onclick=()=>$('invHostBack').classList.remove('show');
+  $('invCopy').onclick=async()=>{
+    const url=linkFor(CODE);
+    try{await navigator.clipboard.writeText(url);toast('Link copied')}
+    catch(e){
+      const r=document.createRange();r.selectNodeContents($('invLink'));
+      const s=getSelection();s.removeAllRanges();s.addRange(r);
+      toast('Press and hold the link to copy');
+    }
+  };
+  $('invText').onclick=()=>{
+    const body=`Join my Golf game! Tap to join: ${linkFor(CODE)}`;
+    location.href=`sms:&body=${encodeURIComponent(body)}`;
+  };
+
+  /* guest side */
+  const refreshGo=()=>{
+    $('invGo').disabled=!($('invName').value.trim()&&pickedSeat!==null&&!started&&!seats[pickedSeat]);
+  };
+  function renderSeats(){
+    const box=$('invSeats');box.innerHTML='';
+    seats.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.className='inv-seat'+(pickedSeat===i?' sel':'');
+      b.textContent=s?s.name:`Seat ${i+1} (open)`;
+      b.disabled=!!s;
+      b.onclick=()=>{pickedSeat=i;renderSeats();refreshGo()};
+      box.appendChild(b);
+    });
+    refreshGo();
+  }
+  const waitAuth=()=>new Promise(res=>{
+    const un=auth.onAuthStateChanged(u=>{if(u){un();res(u)}});
+  });
+
+  async function checkJoinLink(){
+    const c=new URLSearchParams(location.search).get('join');
+    if(!c)return;
+    joinCode=c.toUpperCase().trim();
+    $('invJoinCode').textContent=joinCode;
+    $('invName').value=localStorage.getItem('golfName')||'';
+    $('invName').oninput=refreshGo;
+    $('invJoinBack').classList.add('show');
+    await waitAuth();
+    if(!(await db.ref(`rooms/${joinCode}/host`).once('value')).exists()){
+      $('invMsg').textContent='That game no longer exists.';return;
+    }
+    db.ref(`rooms/${joinCode}/seats`).on('value',s=>{
+      const v=s.val()||{};
+      seats=[0,1,2,3].map(i=>v[i]||null);
+      if(pickedSeat!==null&&seats[pickedSeat]){pickedSeat=null;$('invMsg').textContent='That seat was just taken. Pick another.'}
+      renderSeats();
+    });
+    db.ref(`rooms/${joinCode}/state/status`).on('value',s=>{
+      started=s.val()==='playing';
+      if(started)$('invMsg').textContent='This game has already started.';
+      refreshGo();
+    });
+  }
+
+  async function join(){
+    const name=$('invName').value.trim().slice(0,12);
+    if(!name||pickedSeat===null)return;
+    $('invGo').disabled=true;$('invMsg').textContent='Joining…';
+    try{
+      if(!auth.currentUser)await auth.signInAnonymously();
+      UID=auth.currentUser.uid;
+      const res=await db.ref(`rooms/${joinCode}/seats/${pickedSeat}`)
+        .transaction(cur=>cur?undefined:{uid:UID,name});
+      if(!res.committed){
+        $('invMsg').textContent='That seat was just taken. Pick another.';
+        pickedSeat=null;renderSeats();return;
+      }
+      localStorage.setItem('golfName',name);
+      $('invJoinBack').classList.remove('show');
+      history.replaceState(null,'',location.pathname);
+      enter(joinCode,name);             // existing entry point: subscribes to the room and shows the lobby
+    }catch(e){
+      $('invMsg').textContent='Join failed: '+(e.message||e);
+      refreshGo();
+    }
+  }
+  $('invGo').onclick=join;
+
+  return {openHost,checkJoinLink};
+})();
+
+Invite.checkJoinLink();
+</script>
+</body>
+</html>

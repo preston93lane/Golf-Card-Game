@@ -578,25 +578,19 @@ const Invite=(()=>{
     location.href=`sms:${isIOS?'&':'?'}body=${encodeURIComponent(body)}`;
   };
 
-  /* guest side */
-  const refreshGo=()=>{
-    $('invGo').disabled=!($('invName').value.trim()&&pickedSeat!==null&&!started&&!seats[pickedSeat]);
-  };
-  function renderSeats(){
-    const box=$('invSeats');box.innerHTML='';
-    seats.forEach((s,i)=>{
-      const b=document.createElement('button');
-      b.className='inv-seat'+(pickedSeat===i?' sel':'');
-      b.textContent=s?s.name:`Seat ${i+1} (open)`;
-      b.disabled=!!s;
-      b.onclick=()=>{pickedSeat=i;renderSeats();refreshGo()};
-      box.appendChild(b);
+   /* guest side */
+  let watching=false;
+  const refreshGo=()=>{$('invGo').disabled=!$('invName').value.trim()};
+  const waitAuth=()=>new Promise(res=>{const un=auth.onAuthStateChanged(u=>{if(u){un();res(u)}})});
+
+  // Shows the name sheet (only needed for first-time players) and keeps the status live
+  function openSheet(){
+    $('invJoinBack').classList.add('show');
+    if(watching)return;watching=true;
+    db.ref(`rooms/${joinCode}/state/status`).on('value',s=>{
+      if(s.val()==='playing'){$('invMsg').textContent='This game has already started.';$('invGo').disabled=true}
     });
-    refreshGo();
   }
-  const waitAuth=()=>new Promise(res=>{
-    const un=auth.onAuthStateChanged(u=>{if(u){un();res(u)}});
-  });
 
   async function checkJoinLink(){
     const c=new URLSearchParams(location.search).get('join');
@@ -605,45 +599,50 @@ const Invite=(()=>{
     $('invJoinCode').textContent=joinCode;
     $('invName').value=localStorage.getItem('golfName')||'';
     $('invName').oninput=refreshGo;
-    $('invJoinBack').classList.add('show');
+    refreshGo();
     await waitAuth();
     if(!(await db.ref(`rooms/${joinCode}/host`).once('value')).exists()){
-      $('invMsg').textContent='That game no longer exists.';return;
+      openSheet();$('invMsg').textContent='That game no longer exists.';$('invGo').disabled=true;return;
     }
-    db.ref(`rooms/${joinCode}/seats`).on('value',s=>{
-      const v=s.val()||{};
-      seats=[...Array(seatCount(v))].map((_,i)=>v[i]||null);
-      if(pickedSeat!==null&&seats[pickedSeat]){pickedSeat=null;$('invMsg').textContent='That seat was just taken. Pick another.'}
-      renderSeats();
-    });
-    db.ref(`rooms/${joinCode}/state/status`).on('value',s=>{
-      started=s.val()==='playing';
-      if(started)$('invMsg').textContent='This game has already started.';
-      refreshGo();
-    });
+    // Returning player: seat them right away with no extra taps
+    if($('invName').value.trim()){await join()}
+    else openSheet();
   }
 
+  // Seats the player in the first open seat (or resumes their existing seat)
   async function join(){
     const name=$('invName').value.trim().slice(0,12);
-    if(!name||pickedSeat===null)return;
+    if(!name)return;
     $('invGo').disabled=true;$('invMsg').textContent='Joining…';
     try{
       if(!auth.currentUser)await auth.signInAnonymously();
       UID=auth.currentUser.uid;
-      const res=await db.ref(`rooms/${joinCode}/seats/${pickedSeat}`)
-        .transaction(cur=>cur?undefined:{uid:UID,name});
-      if(!res.committed){
-        $('invMsg').textContent='That seat was just taken. Pick another.';
-        pickedSeat=null;renderSeats();return;
+      const st=(await db.ref(`rooms/${joinCode}/state/status`).once('value')).val();
+      if(st==='playing'){openSheet();$('invMsg').textContent='This game has already started.';return}
+      const v=(await db.ref(`rooms/${joinCode}/seats`).once('value')).val()||{};
+      // Already seated (for example after a page refresh): just open the game
+      if(Object.values(v).some(x=>x&&x.uid===UID)){
+        $('invJoinBack').classList.remove('show');
+        history.replaceState(null,'',location.pathname);
+        enter(joinCode,name);
+        return;
       }
-      localStorage.setItem('golfName',name);
-      $('invJoinBack').classList.remove('show');
-      history.replaceState(null,'',location.pathname);
-      enter(joinCode,name);             // existing entry point: subscribes to the room and shows the lobby
+      const list=[...Array(seatCount(v))].map((_,i)=>v[i]||null);
+      for(let i=0;i<list.length;i++){
+        if(list[i])continue;
+        const res=await db.ref(`rooms/${joinCode}/seats/${i}`).transaction(cur=>cur?undefined:{uid:UID,name});
+        if(res.committed){
+          localStorage.setItem('golfName',name);
+          $('invJoinBack').classList.remove('show');
+          history.replaceState(null,'',location.pathname);
+          enter(joinCode,name);
+          return;
+        }
+      }
+      openSheet();$('invMsg').textContent='This game is full.';
     }catch(e){
-      $('invMsg').textContent='Join failed: '+(e.message||e);
-      refreshGo();
-    }
+      openSheet();$('invMsg').textContent='Join failed: '+(e.message||e);
+    }finally{refreshGo()}
   }
   $('invGo').onclick=join;
 
